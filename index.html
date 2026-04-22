@@ -457,6 +457,11 @@
           </select>
         </div>
       </div>
+
+      <div class="field">
+        <label>Correo electrónico <span style="font-weight:400; color:#a0aec0;">(opcional — para recibir confirmación)</span></label>
+        <input type="email" id="correo" placeholder="tucorreo@gmail.com" autocomplete="email">
+      </div>
     </div>
 
     <!-- SECCIÓN 2: DÍAS Y MENÚ -->
@@ -708,6 +713,8 @@
     const area = document.getElementById('area').value.trim();
     const planilla = document.getElementById('planilla').value;
 
+    const correo = document.getElementById('correo').value.trim();
+
     if (!nombre) return mostrarError('Por favor ingresa tu nombre completo.');
     if (!dni || !/^\d{8}$/.test(dni)) return mostrarError('El DNI debe tener exactamente 8 dígitos numéricos.');
     if (!area) return mostrarError('Por favor ingresa tu área.');
@@ -750,7 +757,7 @@
 
     // Preparar datos
     const datos = {
-      nombre, dni, area, planilla,
+      nombre, dni, area, planilla, correo,
       pedidos: pedidos,
       totalAlmuerzos: pedidos.length,
       totalDescuento: (pedidos.length * 5.90).toFixed(2),
