@@ -542,12 +542,14 @@
   // ============================================================
   let confirmado = false;
   let diasDisponibles = [];
+  let menuSemanal = null; // Menú cargado desde Sheets
 
   // ============================================================
   // INIT
   // ============================================================
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     mostrarFechaHoy();
+    await cargarMenuDesdeSheets();
     generarDias();
   });
 
@@ -557,6 +559,46 @@
     const texto = hoy.toLocaleDateString('es-PE', opciones);
     document.getElementById('fechaHoy').textContent = 
       texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  // ============================================================
+  // CARGAR MENÚ DESDE GOOGLE SHEETS
+  // ============================================================
+  async function cargarMenuDesdeSheets() {
+    try {
+      const resp = await fetch(`${SCRIPT_URL}?action=getMenu`);
+      const data = await resp.json();
+      if (data.status === 'OK' && data.menu) {
+        menuSemanal = data.menu;
+      }
+    } catch (err) {
+      // Si falla, el formulario muestra opciones genéricas
+      menuSemanal = null;
+    }
+  }
+
+  // Obtener opciones de menú para un día específico
+  function getOpcionesMenu(nombreDia) {
+    // Mapear nombre del día al key del menú
+    const keyMap = {
+      'Lunes':     'Lunes',
+      'Martes':    'Martes',
+      'Miércoles': 'Miercoles',
+      'Jueves':    'Jueves',
+      'Viernes':   'Viernes',
+    };
+    const key = keyMap[nombreDia];
+    if (!menuSemanal || !key || !menuSemanal[key]) {
+      // Fallback genérico si no hay menú cargado
+      return {
+        sopa:    'Sopa del día',
+        entrada: 'Entrada del día',
+        fondo1:  'Fondo 1',
+        fondo2:  'Fondo 2',
+        light:   'Opción Light',
+      };
+    }
+    return menuSemanal[key];
   }
 
   // ============================================================
@@ -659,7 +701,9 @@
             <div style="font-size:0.75rem; color:#a0aec0; font-style:italic; white-space:nowrap;">${dia.textoBloqueado}</div>
           </div>`;
       } else {
-        // Día disponible: normal
+        // Día disponible: cargar opciones del menú real
+        const m = getOpcionesMenu(dia.nombre);
+
         card.innerHTML = `
           <div class="dia-header" onclick="toggleDia('${dia.id}')" style="display:flex; align-items:center; gap:12px; padding:14px 16px;">
             <div class="dia-check" id="check_${dia.id}">☐</div>
@@ -674,14 +718,14 @@
               <label class="group-label">Entrada</label>
               <div class="radio-grid">
                 <label class="radio-opt" onclick="selectRadio(this, 'entrada_${dia.id}')">
-                  <input type="radio" name="entrada_${dia.id}" value="Sopa del día">
+                  <input type="radio" name="entrada_${dia.id}" value="${m.sopa}">
                   <div class="radio-dot"></div>
-                  🍜 Sopa del día
+                  🍜 ${m.sopa}
                 </label>
                 <label class="radio-opt" onclick="selectRadio(this, 'entrada_${dia.id}')">
-                  <input type="radio" name="entrada_${dia.id}" value="Entrada del día">
+                  <input type="radio" name="entrada_${dia.id}" value="${m.entrada}">
                   <div class="radio-dot"></div>
-                  🥗 Entrada del día
+                  🥗 ${m.entrada}
                 </label>
               </div>
             </div>
@@ -689,19 +733,19 @@
               <label class="group-label">Plato de fondo</label>
               <div class="radio-grid">
                 <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
-                  <input type="radio" name="fondo_${dia.id}" value="Fondo 1">
+                  <input type="radio" name="fondo_${dia.id}" value="${m.fondo1}">
                   <div class="radio-dot"></div>
-                  🍽️ Fondo 1
+                  🍽️ ${m.fondo1}
                 </label>
                 <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
-                  <input type="radio" name="fondo_${dia.id}" value="Fondo 2">
+                  <input type="radio" name="fondo_${dia.id}" value="${m.fondo2}">
                   <div class="radio-dot"></div>
-                  🍽️ Fondo 2
+                  🍽️ ${m.fondo2}
                 </label>
                 <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
-                  <input type="radio" name="fondo_${dia.id}" value="Opción Light">
+                  <input type="radio" name="fondo_${dia.id}" value="${m.light}">
                   <div class="radio-dot"></div>
-                  🥦 Opción Light
+                  🥦 ${m.light}
                 </label>
               </div>
             </div>
