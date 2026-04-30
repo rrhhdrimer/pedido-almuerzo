@@ -624,13 +624,24 @@
     // Si ya son las 3pm o más, mañana queda bloqueado
     const mananaEstaBlockeada = horaActual >= HORA_CIERRE;
 
+    // Función auxiliar para obtener fechaISO en hora local
+    function toISO(d) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
     // El primer día disponible para pedir es mañana
-    // La regla del viernes límite se calcula basándose en el primer día DISPONIBLE
-    // Si mañana está bloqueado, el primer día disponible es pasado mañana
+    // Si mañana está bloqueado por horario, empezar desde pasado mañana
+    // Saltar fines de semana Y feriados
     let primerDiaDisponible = new Date(hoy);
     primerDiaDisponible.setDate(hoy.getDate() + (mananaEstaBlockeada ? 2 : 1));
-    // Saltar fines de semana
-    while (primerDiaDisponible.getDay() === 0 || primerDiaDisponible.getDay() === 6) {
+    while (
+      primerDiaDisponible.getDay() === 0 ||
+      primerDiaDisponible.getDay() === 6 ||
+      FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaDisponible))
+    ) {
       primerDiaDisponible.setDate(primerDiaDisponible.getDate() + 1);
     }
     const diaSemanaDisponible = primerDiaDisponible.getDay();
@@ -647,6 +658,15 @@
       viernesLimite.setDate(primerDiaDisponible.getDate() + diasHasta);
     }
 
+    // Calcular fecha de mañana para comparar
+    const manana = new Date(hoy);
+    manana.setDate(hoy.getDate() + 1);
+    const mananaISO = toISO(manana);
+
+    // Si mañana está bloqueado por horario, el bloqueo aplica al primerDiaDisponible
+    // (que puede ser el lunes si mañana es feriado o fin de semana)
+    const primerDiaDisponibleISO = toISO(primerDiaDisponible);
+
     const dias = [];
     let fecha = new Date(hoy);
     fecha.setDate(fecha.getDate() + 1); // Desde mañana
@@ -654,16 +674,12 @@
     while (fecha <= viernesLimite) {
       const ds = fecha.getDay();
       if (ds >= 1 && ds <= 5) {
-        // Mañana está bloqueado si ya son las 3pm
-        const esMañana = dias.length === 0;
-        const bloqueadoPorHorario = esMañana && mananaEstaBlockeada;
+        const fechaISO = toISO(fecha);
 
-        // Verificar si es feriado
-        // Usar hora local (no UTC) para evitar desfase por zona horaria
-        const yyyy = fecha.getFullYear();
-        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
-        const dd = String(fecha.getDate()).padStart(2, '0');
-        const fechaISO = `${yyyy}-${mm}-${dd}`;
+        // Bloqueado por horario si es el primer día disponible y ya son las 3pm
+        const bloqueadoPorHorario = (fechaISO === primerDiaDisponibleISO) && mananaEstaBlockeada;
+
+        // Verificar si es feriado usando hora local
         const esFeriado = FECHAS_BLOQUEADAS.hasOwnProperty(fechaISO);
         const bloqueado = bloqueadoPorHorario || esFeriado;
         const textoBloqueado = esFeriado ? FECHAS_BLOQUEADAS[fechaISO] : 'Plazo cerrado';
