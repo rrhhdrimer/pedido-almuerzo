@@ -479,6 +479,14 @@
         <!-- Se genera dinámicamente -->
       </div>
 
+      <!-- Loading indicator -->
+      <div id="loadingMenu" style="text-align:center; padding:24px 0;">
+        <div style="display:inline-flex; align-items:center; gap:10px; background:#f4f6f9; border-radius:12px; padding:14px 20px;">
+          <div style="width:18px; height:18px; border:2.5px solid #DDE5ED; border-top-color:#384967; border-radius:50%; animation:spin 0.7s linear infinite;"></div>
+          <span style="font-size:0.85rem; color:#718096; font-weight:500;">Cargando menú de la semana...</span>
+        </div>
+      </div>
+
       <div id="sinDias" style="text-align:center; color:#a0aec0; font-size:0.85rem; padding:20px 0; display:none;">
         No hay días disponibles para pedir en este momento.
       </div>
@@ -678,6 +686,9 @@
   function generarDias() {
     diasDisponibles = obtenerDiasDisponibles();
     const grid = document.getElementById('diasGrid');
+
+    // Ocultar loading
+    document.getElementById('loadingMenu').style.display = 'none';
 
     if (diasDisponibles.length === 0) {
       document.getElementById('sinDias').style.display = 'block';
