@@ -147,8 +147,15 @@
     overflow: hidden;
     transition: border-color 0.2s;
   }
-  .dia-card.activo {
-    border-color: var(--azul);
+  .dia-card.bloqueado {
+    border-color: #e2e8f0;
+    background: #f7fafc;
+    opacity: 0.7;
+  }
+  .dia-card.bloqueado .dia-header {
+    background: #f7fafc;
+    cursor: not-allowed;
+  }
     box-shadow: 0 2px 12px rgba(56,73,103,0.12);
   }
 
@@ -419,12 +426,7 @@
     <span id="fechaHoy"></span>
   </div>
 
-  <!-- CERRADO -->
-  <div class="cerrado-banner" id="cerradoBanner">
-    <h3>El formulario está cerrado</h3>
-    <p>El plazo de pedidos cerró a las 3:00 pm. Puedes registrar tu pedido para mañana a partir de las 7:00 am.<br>Para cancelar un pedido, contacta a María Inés de la Cruz.</p>
-  </div>
-
+  <!-- FORMULARIO -->
   <form id="formulario">
 
     <!-- SECCIÓN 1: DATOS -->
@@ -519,8 +521,21 @@
   // CONFIGURACIÓN
   // ============================================================
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx2avseaAUefzSMXhxssvxR1joS035kSIMs1xl8ki4hEZTPmum6qJ0b_VstuYH0uBG2nQ/exec';
-  const HORA_CIERRE = 20; // 3:00 pm
-  const HORA_APERTURA = 5; // 5:00 am
+  const HORA_CIERRE = 15; // 3:00 pm
+
+  // Fechas sin servicio (feriados u otros). Formato: 'YYYY-MM-DD'
+  const FECHAS_BLOQUEADAS = {
+    '2026-05-01': 'Feriado - Día del Trabajo',
+    '2026-06-29': 'Feriado - San Pedro y San Pablo',
+    '2026-07-23': 'Feriado - Día de la Fuerza Aérea',
+    '2026-07-28': 'Feriado - Fiestas Patrias',
+    '2026-07-29': 'Feriado - Fiestas Patrias',
+    '2026-08-06': 'Feriado - Batalla de Junín',
+    '2026-10-08': 'Feriado - Combate de Angamos',
+    '2026-12-08': 'Feriado - Inmaculada Concepción',
+    '2026-12-09': 'Feriado - Batalla de Ayacucho',
+    '2026-12-25': 'Feriado - Navidad',
+  };
 
   // ============================================================
   // ESTADO
@@ -533,7 +548,6 @@
   // ============================================================
   document.addEventListener('DOMContentLoaded', () => {
     mostrarFechaHoy();
-    verificarHorario();
     generarDias();
   });
 
@@ -545,36 +559,42 @@
       texto.charAt(0).toUpperCase() + texto.slice(1);
   }
 
-  function verificarHorario() {
-    const ahora = new Date();
-    const hora = ahora.getHours();
-    if (hora >= HORA_CIERRE || hora < HORA_APERTURA) {
-      document.getElementById('cerradoBanner').style.display = 'block';
-      document.getElementById('formulario').style.display = 'none';
-    }
-  }
-
   // ============================================================
   // GENERAR DÍAS DISPONIBLES
   // ============================================================
   function obtenerDiasDisponibles() {
     const hoy = new Date();
-    const diaSemana = hoy.getDay(); // 0=Dom,1=Lun,2=Mar,3=Mie,4=Jue,5=Vie,6=Sab
-    
+    const diaSemana = hoy.getDay();
+    const horaActual = hoy.getHours();
+
     const nombresDias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const nombresMeses = ['enero','febrero','marzo','abril','mayo','junio',
                           'julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-    // Calcular viernes límite
-    let viernesLimite = new Date(hoy);
-    if (diaSemana === 4 || diaSemana === 5) {
-      // Jueves o Viernes → siguiente viernes
-      const diasHasta = diaSemana === 4 ? 8 : 7;
-      viernesLimite.setDate(hoy.getDate() + diasHasta);
+    // Si ya son las 3pm o más, mañana queda bloqueado
+    const mananaEstaBlockeada = horaActual >= HORA_CIERRE;
+
+    // El primer día disponible para pedir es mañana
+    // La regla del viernes límite se calcula basándose en el primer día DISPONIBLE
+    // Si mañana está bloqueado, el primer día disponible es pasado mañana
+    let primerDiaDisponible = new Date(hoy);
+    primerDiaDisponible.setDate(hoy.getDate() + (mananaEstaBlockeada ? 2 : 1));
+    // Saltar fines de semana
+    while (primerDiaDisponible.getDay() === 0 || primerDiaDisponible.getDay() === 6) {
+      primerDiaDisponible.setDate(primerDiaDisponible.getDate() + 1);
+    }
+    const diaSemanaDisponible = primerDiaDisponible.getDay();
+
+    // Calcular viernes límite según el primer día disponible
+    let viernesLimite = new Date(primerDiaDisponible);
+    if (diaSemanaDisponible === 4 || diaSemanaDisponible === 5) {
+      // El primer día disponible es jueves o viernes → mostrar hasta siguiente viernes
+      const diasHasta = diaSemanaDisponible === 4 ? 8 : 7;
+      viernesLimite.setDate(primerDiaDisponible.getDate() + diasHasta);
     } else {
-      // Lun, Mar, Mie (o fin de semana) → viernes de esta semana
-      const diasHasta = diaSemana === 0 ? 5 : (5 - diaSemana);
-      viernesLimite.setDate(hoy.getDate() + diasHasta);
+      // El primer día disponible es lunes, martes o miércoles → viernes de esta semana
+      const diasHasta = 5 - diaSemanaDisponible;
+      viernesLimite.setDate(primerDiaDisponible.getDate() + diasHasta);
     }
 
     const dias = [];
@@ -584,12 +604,27 @@
     while (fecha <= viernesLimite) {
       const ds = fecha.getDay();
       if (ds >= 1 && ds <= 5) {
+        // Mañana está bloqueado si ya son las 3pm
+        const esMañana = dias.length === 0;
+        const bloqueadoPorHorario = esMañana && mananaEstaBlockeada;
+
+        // Verificar si es feriado
+        // Usar hora local (no UTC) para evitar desfase por zona horaria
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+        const fechaISO = `${yyyy}-${mm}-${dd}`;
+        const esFeriado = FECHAS_BLOQUEADAS.hasOwnProperty(fechaISO);
+        const bloqueado = bloqueadoPorHorario || esFeriado;
+        const textoBloqueado = esFeriado ? FECHAS_BLOQUEADAS[fechaISO] : 'Plazo cerrado';
+
         dias.push({
           id: `dia_${dias.length}`,
           nombre: nombresDias[ds],
           fecha: `${fecha.getDate()} de ${nombresMeses[fecha.getMonth()]}`,
-          fechaCompleta: new Date(fecha).toLocaleDateString('es-PE'),
-          fechaISO: fecha.toISOString().split('T')[0]
+          fechaISO: fechaISO,
+          bloqueado: bloqueado,
+          textoBloqueado: textoBloqueado
         });
       }
       fecha.setDate(fecha.getDate() + 1);
@@ -601,7 +636,7 @@
   function generarDias() {
     diasDisponibles = obtenerDiasDisponibles();
     const grid = document.getElementById('diasGrid');
-    
+
     if (diasDisponibles.length === 0) {
       document.getElementById('sinDias').style.display = 'block';
       return;
@@ -609,59 +644,69 @@
 
     diasDisponibles.forEach((dia, idx) => {
       const card = document.createElement('div');
-      card.className = 'dia-card';
+      card.className = `dia-card${dia.bloqueado ? ' bloqueado' : ''}`;
       card.id = `card_${dia.id}`;
 
-      card.innerHTML = `
-        <div class="dia-header" onclick="toggleDia('${dia.id}')">
-          <div class="dia-check" id="check_${dia.id}">☐</div>
-          <div>
-            <div class="dia-nombre">${dia.nombre}</div>
-            <div class="dia-fecha-label">${dia.fecha}</div>
-          </div>
-          <div style="font-size:1.2rem;">🍽️</div>
-        </div>
-        <div class="dia-opciones" id="opciones_${dia.id}">
-          
-          <div class="opcion-group">
-            <label class="group-label">Entrada</label>
-            <div class="radio-grid">
-              <label class="radio-opt" onclick="selectRadio(this, 'entrada_${dia.id}')">
-                <input type="radio" name="entrada_${dia.id}" value="Sopa del día">
-                <div class="radio-dot"></div>
-                🍜 Sopa del día
-              </label>
-              <label class="radio-opt" onclick="selectRadio(this, 'entrada_${dia.id}')">
-                <input type="radio" name="entrada_${dia.id}" value="Entrada del día">
-                <div class="radio-dot"></div>
-                🥗 Entrada del día
-              </label>
+      if (dia.bloqueado) {
+        // Día bloqueado: gris, tachado, no clickeable
+        card.innerHTML = `
+          <div class="dia-header" style="cursor:not-allowed; display:flex; align-items:center; gap:12px; padding:14px 16px; background:#f7fafc;">
+            <div class="dia-check" style="border-color:#cbd5e0; color:#cbd5e0; width:22px; height:22px; border:2px solid #cbd5e0; border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:0.8rem;">—</div>
+            <div style="flex:1;">
+              <div class="dia-nombre" style="text-decoration:line-through; color:#a0aec0; font-size:0.9rem; font-weight:600;">${dia.nombre}</div>
+              <div class="dia-fecha-label" style="text-decoration:line-through; color:#cbd5e0; font-size:0.75rem;">${dia.fecha}</div>
             </div>
-          </div>
-
-          <div class="opcion-group">
-            <label class="group-label">Plato de fondo</label>
-            <div class="radio-grid">
-              <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
-                <input type="radio" name="fondo_${dia.id}" value="Fondo 1">
-                <div class="radio-dot"></div>
-                🍽️ Fondo 1
-              </label>
-              <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
-                <input type="radio" name="fondo_${dia.id}" value="Fondo 2">
-                <div class="radio-dot"></div>
-                🍽️ Fondo 2
-              </label>
-              <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
-                <input type="radio" name="fondo_${dia.id}" value="Opción Light">
-                <div class="radio-dot"></div>
-                🥦 Opción Light
-              </label>
+            <div style="font-size:0.75rem; color:#a0aec0; font-style:italic; white-space:nowrap;">${dia.textoBloqueado}</div>
+          </div>`;
+      } else {
+        // Día disponible: normal
+        card.innerHTML = `
+          <div class="dia-header" onclick="toggleDia('${dia.id}')" style="display:flex; align-items:center; gap:12px; padding:14px 16px;">
+            <div class="dia-check" id="check_${dia.id}">☐</div>
+            <div style="flex:1;">
+              <div class="dia-nombre">${dia.nombre}</div>
+              <div class="dia-fecha-label">${dia.fecha}</div>
             </div>
+            <div style="font-size:1.2rem; flex-shrink:0;">🍽️</div>
           </div>
-
-        </div>
-      `;
+          <div class="dia-opciones" id="opciones_${dia.id}">
+            <div class="opcion-group">
+              <label class="group-label">Entrada</label>
+              <div class="radio-grid">
+                <label class="radio-opt" onclick="selectRadio(this, 'entrada_${dia.id}')">
+                  <input type="radio" name="entrada_${dia.id}" value="Sopa del día">
+                  <div class="radio-dot"></div>
+                  🍜 Sopa del día
+                </label>
+                <label class="radio-opt" onclick="selectRadio(this, 'entrada_${dia.id}')">
+                  <input type="radio" name="entrada_${dia.id}" value="Entrada del día">
+                  <div class="radio-dot"></div>
+                  🥗 Entrada del día
+                </label>
+              </div>
+            </div>
+            <div class="opcion-group">
+              <label class="group-label">Plato de fondo</label>
+              <div class="radio-grid">
+                <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
+                  <input type="radio" name="fondo_${dia.id}" value="Fondo 1">
+                  <div class="radio-dot"></div>
+                  🍽️ Fondo 1
+                </label>
+                <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
+                  <input type="radio" name="fondo_${dia.id}" value="Fondo 2">
+                  <div class="radio-dot"></div>
+                  🍽️ Fondo 2
+                </label>
+                <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
+                  <input type="radio" name="fondo_${dia.id}" value="Opción Light">
+                  <div class="radio-dot"></div>
+                  🥦 Opción Light
+                </label>
+              </div>
+            </div>
+          </div>`;
+      }
 
       grid.appendChild(card);
     });
