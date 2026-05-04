@@ -576,18 +576,28 @@
     try {
       const resp = await fetch(`${SCRIPT_URL}?action=getMenu`);
       const data = await resp.json();
-      if (data.status === 'OK' && data.menu) {
-        menuSemanal = data.menu;
+      if (data.status === 'OK' && data.menuPorSemana) {
+        menuSemanal = data.menuPorSemana;
       }
     } catch (err) {
-      // Si falla, el formulario muestra opciones genéricas
       menuSemanal = null;
     }
   }
 
+  // Obtener el lunes de la semana a la que pertenece una fecha
+  function getLunesDeSemana(fechaISO) {
+    const fecha = new Date(fechaISO + 'T12:00:00');
+    const dia = fecha.getDay();
+    const diff = (dia === 0 ? -6 : 1 - dia); // Lunes = 1
+    fecha.setDate(fecha.getDate() + diff);
+    const yyyy = fecha.getFullYear();
+    const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dd = String(fecha.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
   // Obtener opciones de menú para un día específico
-  function getOpcionesMenu(nombreDia) {
-    // Mapear nombre del día al key del menú
+  function getOpcionesMenu(nombreDia, fechaISO) {
     const keyMap = {
       'Lunes':     'Lunes',
       'Martes':    'Martes',
@@ -596,17 +606,22 @@
       'Viernes':   'Viernes',
     };
     const key = keyMap[nombreDia];
-    if (!menuSemanal || !key || !menuSemanal[key]) {
-      // Fallback genérico si no hay menú cargado
-      return {
-        sopa:    'Sopa del día',
-        entrada: 'Entrada del día',
-        fondo1:  'Fondo 1',
-        fondo2:  'Fondo 2',
-        light:   'Opción Light',
-      };
-    }
-    return menuSemanal[key];
+    const fallback = {
+      sopa:    'Sopa del día',
+      entrada: 'Entrada del día',
+      fondo1:  'Fondo 1',
+      fondo2:  'Fondo 2',
+      light:   'Opción Light',
+    };
+
+    if (!menuSemanal || !key) return fallback;
+
+    // Buscar la semana correcta según la fecha del día
+    const lunesDeSemana = getLunesDeSemana(fechaISO);
+    const menuSemana = menuSemanal[lunesDeSemana];
+
+    if (!menuSemana || !menuSemana[key]) return fallback;
+    return menuSemana[key];
   }
 
   // ============================================================
@@ -739,7 +754,7 @@
           </div>`;
       } else {
         // Día disponible: cargar opciones del menú real
-        const m = getOpcionesMenu(dia.nombre);
+        const m = getOpcionesMenu(dia.nombre, dia.fechaISO);
 
         card.innerHTML = `
           <div class="dia-header" onclick="toggleDia('${dia.id}')" style="display:flex; align-items:center; gap:12px; padding:14px 16px;">
