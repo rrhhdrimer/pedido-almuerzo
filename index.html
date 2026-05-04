@@ -632,11 +632,10 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    // El primer día disponible para pedir es mañana
-    // Si mañana está bloqueado por horario, empezar desde pasado mañana
-    // Saltar fines de semana Y feriados
+    // El primer día disponible para PEDIR empieza siempre desde mañana
+    // Solo salta fines de semana y feriados (no el bloqueo por horario)
     let primerDiaDisponible = new Date(hoy);
-    primerDiaDisponible.setDate(hoy.getDate() + (mananaEstaBlockeada ? 2 : 1));
+    primerDiaDisponible.setDate(hoy.getDate() + 1);
     while (
       primerDiaDisponible.getDay() === 0 ||
       primerDiaDisponible.getDay() === 6 ||
@@ -644,28 +643,38 @@
     ) {
       primerDiaDisponible.setDate(primerDiaDisponible.getDate() + 1);
     }
-    const diaSemanaDisponible = primerDiaDisponible.getDay();
 
-    // Calcular viernes límite según el primer día disponible
-    let viernesLimite = new Date(primerDiaDisponible);
-    if (diaSemanaDisponible === 4 || diaSemanaDisponible === 5) {
-      // El primer día disponible es jueves o viernes → mostrar hasta siguiente viernes
-      const diasHasta = diaSemanaDisponible === 4 ? 8 : 7;
-      viernesLimite.setDate(primerDiaDisponible.getDate() + diasHasta);
+    // El primerDiaHabilSinBloqueo es el que determina el viernes límite
+    // Si mañana está bloqueado por horario, usamos el día SIGUIENTE al primerDiaDisponible
+    let primerDiaParaLimite = new Date(primerDiaDisponible);
+    if (mananaEstaBlockeada) {
+      primerDiaParaLimite.setDate(primerDiaParaLimite.getDate() + 1);
+      while (
+        primerDiaParaLimite.getDay() === 0 ||
+        primerDiaParaLimite.getDay() === 6 ||
+        FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaParaLimite))
+      ) {
+        primerDiaParaLimite.setDate(primerDiaParaLimite.getDate() + 1);
+      }
+    }
+    const diaSemanaDisponible = primerDiaParaLimite.getDay();
+
+    // Calcular viernes límite basándose en HOY (no en el primer día disponible)
+    // Regla: jueves y viernes → semana siguiente. Lunes, martes, miércoles → esta semana.
+    let viernesLimite = new Date(hoy);
+    if (diaSemana === 4 || diaSemana === 5 || diaSemana === 0 || diaSemana === 6) {
+      // Jueves, viernes, sábado o domingo → viernes de la semana siguiente
+      const diasHastaViernesSgte = (12 - diaSemana) % 7 + 1;
+      viernesLimite.setDate(hoy.getDate() + diasHastaViernesSgte);
     } else {
-      // El primer día disponible es lunes, martes o miércoles → viernes de esta semana
-      const diasHasta = 5 - diaSemanaDisponible;
-      viernesLimite.setDate(primerDiaDisponible.getDate() + diasHasta);
+      // Lunes (1), martes (2), miércoles (3) → viernes de esta semana
+      viernesLimite.setDate(hoy.getDate() + (5 - diaSemana));
     }
 
     // Calcular fecha de mañana para comparar
     const manana = new Date(hoy);
     manana.setDate(hoy.getDate() + 1);
     const mananaISO = toISO(manana);
-
-    // Si mañana está bloqueado por horario, el bloqueo aplica al primerDiaDisponible
-    // (que puede ser el lunes si mañana es feriado o fin de semana)
-    const primerDiaDisponibleISO = toISO(primerDiaDisponible);
 
     const dias = [];
     let fecha = new Date(hoy);
@@ -676,7 +685,8 @@
       if (ds >= 1 && ds <= 5) {
         const fechaISO = toISO(fecha);
 
-        // Bloqueado por horario si es el primer día disponible y ya son las 3pm
+        // Bloqueado por horario si es el primerDiaDisponible y ya son las 3pm
+        const primerDiaDisponibleISO = toISO(primerDiaDisponible);
         const bloqueadoPorHorario = (fechaISO === primerDiaDisponibleISO) && mananaEstaBlockeada;
 
         // Verificar si es feriado usando hora local
