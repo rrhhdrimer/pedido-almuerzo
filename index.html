@@ -534,7 +534,6 @@
   // Fechas sin servicio (feriados u otros). Formato: 'YYYY-MM-DD'
   const FECHAS_BLOQUEADAS = {
     '2026-05-01': 'Feriado - Día del Trabajo',
-    '2026-05-12': '57° Aniversario Drimer - Perulandia',
     '2026-06-29': 'Feriado - San Pedro y San Pablo',
     '2026-07-23': 'Feriado - Día de la Fuerza Aérea',
     '2026-07-28': 'Feriado - Fiestas Patrias',
@@ -675,15 +674,20 @@
     }
     const diaSemanaDisponible = primerDiaParaLimite.getDay();
 
-    // Calcular viernes límite basándose en HOY (no en el primer día disponible)
-    // Regla: jueves y viernes → semana siguiente. Lunes, martes, miércoles → esta semana.
+    // Calcular viernes límite basándose en HOY
+    // Jueves(4), Viernes(5), Sábado(6), Domingo(0) → viernes de la semana siguiente
+    // Lunes(1), Martes(2), Miércoles(3) → viernes de esta semana
     let viernesLimite = new Date(hoy);
-    if (diaSemana === 4 || diaSemana === 5 || diaSemana === 0 || diaSemana === 6) {
-      // Jueves, viernes, sábado o domingo → viernes de la semana siguiente
-      const diasHastaViernesSgte = (12 - diaSemana) % 7 + 1;
-      viernesLimite.setDate(hoy.getDate() + diasHastaViernesSgte);
+    if (diaSemana === 4 || diaSemana === 5 || diaSemana === 6 || diaSemana === 0) {
+      // Calcular cuántos días faltan para el próximo viernes (de la semana siguiente)
+      let diasHastaViernes;
+      if (diaSemana === 4) diasHastaViernes = 8;      // Jueves → 8 días
+      else if (diaSemana === 5) diasHastaViernes = 7; // Viernes → 7 días
+      else if (diaSemana === 6) diasHastaViernes = 6; // Sábado → 6 días
+      else diasHastaViernes = 5;                      // Domingo → 5 días
+      viernesLimite.setDate(hoy.getDate() + diasHastaViernes);
     } else {
-      // Lunes (1), martes (2), miércoles (3) → viernes de esta semana
+      // Lunes(1), Martes(2), Miércoles(3) → viernes de esta semana
       viernesLimite.setDate(hoy.getDate() + (5 - diaSemana));
     }
 
