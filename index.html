@@ -648,14 +648,16 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    // El primer día disponible para PEDIR empieza siempre desde mañana
-    // Solo salta fines de semana y feriados (no el bloqueo por horario)
+    // El primer día disponible para pedir empieza siempre desde mañana
+    // Salta fines de semana, feriados, Y el lunes si hoy es sábado o domingo
     let primerDiaDisponible = new Date(hoy);
     primerDiaDisponible.setDate(hoy.getDate() + 1);
     while (
       primerDiaDisponible.getDay() === 0 ||
       primerDiaDisponible.getDay() === 6 ||
-      FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaDisponible))
+      FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaDisponible)) ||
+      // Sábado(6) y Domingo(0): saltar también el lunes
+      ((diaSemana === 6 || diaSemana === 0) && primerDiaDisponible.getDay() === 1)
     ) {
       primerDiaDisponible.setDate(primerDiaDisponible.getDate() + 1);
     }
@@ -676,17 +678,24 @@
     const diaSemanaDisponible = primerDiaParaLimite.getDay();
 
     // Calcular viernes límite basándose en HOY
-    // Jueves(4), Viernes(5), Sábado(6), Domingo(0) → viernes de la semana siguiente
-    // Lunes(1), Martes(2), Miércoles(3) → viernes de esta semana
+    // Solo jueves(4) y viernes(5) → viernes de la semana siguiente
+    // Lunes(1), Martes(2), Miércoles(3), Sábado(6), Domingo(0) → viernes de esta semana
+    // Nota: sábado y domingo el "viernes de esta semana" ya pasó, así que
+    // se calcula el viernes de la semana siguiente a la del lunes próximo
     let viernesLimite = new Date(hoy);
-    if (diaSemana === 4 || diaSemana === 5 || diaSemana === 6 || diaSemana === 0) {
-      // Calcular cuántos días faltan para el próximo viernes (de la semana siguiente)
-      let diasHastaViernes;
-      if (diaSemana === 4) diasHastaViernes = 8;      // Jueves → 8 días
-      else if (diaSemana === 5) diasHastaViernes = 7; // Viernes → 7 días
-      else if (diaSemana === 6) diasHastaViernes = 6; // Sábado → 6 días
-      else diasHastaViernes = 5;                      // Domingo → 5 días
-      viernesLimite.setDate(hoy.getDate() + diasHastaViernes);
+    if (diaSemana === 4) {
+      // Jueves → viernes siguiente (8 días)
+      viernesLimite.setDate(hoy.getDate() + 8);
+    } else if (diaSemana === 5) {
+      // Viernes → viernes siguiente (7 días)
+      viernesLimite.setDate(hoy.getDate() + 7);
+    } else if (diaSemana === 6) {
+      // Sábado → viernes de la semana siguiente (6 días)
+      // pero el primer día disponible es martes, así que límite = viernes de esa semana
+      viernesLimite.setDate(hoy.getDate() + 6);
+    } else if (diaSemana === 0) {
+      // Domingo → viernes de la semana siguiente (5 días)
+      viernesLimite.setDate(hoy.getDate() + 5);
     } else {
       // Lunes(1), Martes(2), Miércoles(3) → viernes de esta semana
       viernesLimite.setDate(hoy.getDate() + (5 - diaSemana));
