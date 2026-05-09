@@ -719,10 +719,14 @@
         const primerDiaDisponibleISO = toISO(primerDiaDisponible);
         const bloqueadoPorHorario = (fechaISO === primerDiaDisponibleISO) && mananaEstaBlockeada;
 
+        // Bloqueado si hoy es sábado o domingo y este día es lunes
+        const bloqueadoFinDeSemana = (diaSemana === 6 || diaSemana === 0) && ds === 1;
+
         // Verificar si es feriado usando hora local
         const esFeriado = FECHAS_BLOQUEADAS.hasOwnProperty(fechaISO);
-        const bloqueado = bloqueadoPorHorario || esFeriado;
-        const textoBloqueado = esFeriado ? FECHAS_BLOQUEADAS[fechaISO] : 'Plazo cerrado';
+        const bloqueado = bloqueadoPorHorario || esFeriado || bloqueadoFinDeSemana;
+        let textoBloqueado = 'Plazo cerrado';
+        if (esFeriado) textoBloqueado = FECHAS_BLOQUEADAS[fechaISO];
 
         dias.push({
           id: `dia_${dias.length}`,
