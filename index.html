@@ -720,7 +720,7 @@
         const bloqueadoPorHorario = (fechaISO === primerDiaDisponibleISO) && mananaEstaBlockeada;
 
         // Bloqueado si hoy es sábado o domingo y este día es lunes
-        const bloqueadoFinDeSemana = (diaSemana === 6 || diaSemana === 0) && ds === 1;
+        const bloqueadoFinDeSemana = false;
 
         // Verificar si es feriado usando hora local
         const esFeriado = FECHAS_BLOQUEADAS.hasOwnProperty(fechaISO);
