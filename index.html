@@ -529,7 +529,7 @@
   // CONFIGURACIÓN
   // ============================================================
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx2avseaAUefzSMXhxssvxR1joS035kSIMs1xl8ki4hEZTPmum6qJ0b_VstuYH0uBG2nQ/exec';
-  const HORA_CIERRE = 15; // 03:00 pm
+  const HORA_CIERRE = 15; // 3:00 pm
 
   // Fechas sin servicio (feriados u otros). Formato: 'YYYY-MM-DD'
   const FECHAS_BLOQUEADAS = {
@@ -637,8 +637,19 @@
     const nombresMeses = ['enero','febrero','marzo','abril','mayo','junio',
                           'julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-    // Si ya son las 3pm o más, mañana queda bloqueado
-    const mananaEstaBlockeada = horaActual >= HORA_CIERRE;
+    // Nueva lógica de cierre:
+    // - Viernes: formulario abierto todo el día, lunes siempre disponible
+    // - Sábado: formulario abierto todo el día, lunes siempre disponible
+    // - Domingo: lunes disponible hasta las 8pm, bloqueado después de las 8pm
+    // - Resto de días: cierre a las 3pm como siempre
+
+    const HORA_CIERRE_DOMINGO = 20; // 8pm
+
+    // mananaEstaBlockeada solo aplica de lunes a jueves (no viernes, sábado ni domingo)
+    const mananaEstaBlockeada = (diaSemana >= 1 && diaSemana <= 4) && horaActual >= HORA_CIERRE;
+
+    // El lunes está bloqueado solo si hoy es domingo después de las 8pm
+    const lunesEstaBlockeado = diaSemana === 0 && horaActual >= HORA_CIERRE_DOMINGO;
 
     // Función auxiliar para obtener fechaISO en hora local
     function toISO(d) {
@@ -648,16 +659,16 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    // El primer día disponible para pedir empieza siempre desde mañana
-    // Salta fines de semana, feriados, Y el lunes si hoy es sábado o domingo
+    // El primer día disponible empieza desde mañana
+    // Salta fines de semana y feriados
+    // El lunes se salta solo si hoy es domingo después de las 8pm
     let primerDiaDisponible = new Date(hoy);
     primerDiaDisponible.setDate(hoy.getDate() + 1);
     while (
       primerDiaDisponible.getDay() === 0 ||
       primerDiaDisponible.getDay() === 6 ||
       FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaDisponible)) ||
-      // Sábado(6) y Domingo(0): saltar también el lunes
-      ((diaSemana === 6 || diaSemana === 0) && primerDiaDisponible.getDay() === 1)
+      (lunesEstaBlockeado && primerDiaDisponible.getDay() === 1)
     ) {
       primerDiaDisponible.setDate(primerDiaDisponible.getDate() + 1);
     }
@@ -701,11 +712,6 @@
       viernesLimite.setDate(hoy.getDate() + (5 - diaSemana));
     }
 
-    // Calcular fecha de mañana para comparar
-    const manana = new Date(hoy);
-    manana.setDate(hoy.getDate() + 1);
-    const mananaISO = toISO(manana);
-
     const dias = [];
     let fecha = new Date(hoy);
     fecha.setDate(fecha.getDate() + 1); // Desde mañana
@@ -715,12 +721,12 @@
       if (ds >= 1 && ds <= 5) {
         const fechaISO = toISO(fecha);
 
-        // Bloqueado por horario si es el primerDiaDisponible y ya son las 3pm
+        // Bloqueado por horario si es el primerDiaDisponible y ya son las 3pm (lun-jue)
         const primerDiaDisponibleISO = toISO(primerDiaDisponible);
         const bloqueadoPorHorario = (fechaISO === primerDiaDisponibleISO) && mananaEstaBlockeada;
 
-        // Bloqueado si hoy es sábado o domingo y este día es lunes
-        const bloqueadoFinDeSemana = (diaSemana === 6 || diaSemana === 0) && ds === 1;
+        // Lunes bloqueado solo si hoy es domingo después de las 8pm
+        const bloqueadoFinDeSemana = lunesEstaBlockeado && ds === 1;
 
         // Verificar si es feriado usando hora local
         const esFeriado = FECHAS_BLOQUEADAS.hasOwnProperty(fechaISO);
