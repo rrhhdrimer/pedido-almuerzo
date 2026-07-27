@@ -647,8 +647,19 @@
 
     const HORA_CIERRE_DOMINGO = 20; // 8pm
 
+    // EXCEPCIÓN TEMPORAL — Semana del 27 al 29 de julio 2026
+    // Como martes 28 y miércoles 29 son feriados, la regla normal de cierre
+    // de las 3pm terminaría bloqueando también el jueves 30 en cascada.
+    // Por eso, SOLO durante estos 3 días, se desactiva el cierre de las 3pm
+    // para que el formulario quede abierto todo el día y la gente pueda
+    // pedir con tiempo para jueves 30 y viernes 31.
+    // Esta excepción se puede borrar después del 29 de julio 2026 (ya no
+    // tiene efecto una vez pasada esa fecha, pero no hace daño dejarla).
+    const DIAS_SIN_CIERRE_3PM = ['2026-07-27', '2026-07-28', '2026-07-29'];
+    const hoyEsDiaSinCierre = DIAS_SIN_CIERRE_3PM.includes(toISO(hoy));
+
     // mananaEstaBlockeada solo aplica de lunes a jueves (no viernes, sábado ni domingo)
-    const mananaEstaBlockeada = (diaSemana >= 1 && diaSemana <= 4) && horaActual >= HORA_CIERRE;
+    const mananaEstaBlockeada = (diaSemana >= 1 && diaSemana <= 4) && horaActual >= HORA_CIERRE && !hoyEsDiaSinCierre;
 
     // El lunes está bloqueado solo si hoy es domingo después de las 8pm
     const lunesEstaBlockeado = diaSemana === 0 && horaActual >= HORA_CIERRE_DOMINGO;
