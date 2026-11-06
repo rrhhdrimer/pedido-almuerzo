@@ -532,7 +532,10 @@
   // CONFIGURACIÓN
   // ============================================================
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx2avseaAUefzSMXhxssvxR1joS035kSIMs1xl8ki4hEZTPmum6qJ0b_VstuYH0uBG2nQ/exec';
-  const HORA_CIERRE = 15; // 3:00 pm
+  const HORA_CIERRE = 15;          // 3:00 pm — de lunes a jueves se cierra el día siguiente
+  const HORA_CIERRE_SABADO = 17;   // 5:00 pm — el sábado se cierra el formulario completo
+  const HORA_APERTURA_LUNES = 6;   // 6:00 am — el lunes se vuelve a abrir
+  const MENSAJE_CERRADO = 'El formulario está cerrado. Puedes volver a hacer tus pedidos a partir del lunes a las 6:00 am';
 
   // Fechas sin servicio (feriados u otros). Formato: 'YYYY-MM-DD'
   const FECHAS_BLOQUEADAS = {
@@ -558,10 +561,48 @@
   // INIT
   // ============================================================
   document.addEventListener('DOMContentLoaded', async () => {
+    if (formularioEstaCerrado()) {
+      mostrarFormularioCerrado();
+      return;
+    }
     mostrarFechaHoy();
     await cargarMenuDesdeSheets();
     generarDias();
   });
+
+  // ============================================================
+  // FORMULARIO CERRADO: sábado 5:00 pm → lunes 6:00 am
+  // ============================================================
+  function formularioEstaCerrado(ahora = new Date()) {
+    const dia = ahora.getDay();     // 0 = domingo, 1 = lunes ... 6 = sábado
+    const hora = ahora.getHours();
+    if (dia === 6 && hora >= HORA_CIERRE_SABADO) return true;  // sábado desde las 5 pm
+    if (dia === 0) return true;                                // domingo todo el día
+    if (dia === 1 && hora < HORA_APERTURA_LUNES) return true;  // lunes antes de las 6 am
+    return false;
+  }
+
+  function mostrarFormularioCerrado() {
+    const contenedor = document.querySelector('.container');
+    const cabecera = contenedor.querySelector('.header');
+    // Se oculta todo menos la cabecera (logo Drimer)
+    Array.from(contenedor.children).forEach(el => {
+      if (el !== cabecera) el.style.display = 'none';
+    });
+    const aviso = document.createElement('div');
+    aviso.className = 'card';
+    aviso.style.textAlign = 'center';
+    aviso.style.padding = '40px 24px';
+    aviso.innerHTML = `
+      <div style="font-size:2.4rem; margin-bottom:12px;">🔒</div>
+      <div style="font-size:1.05rem; font-weight:700; color:#384967; line-height:1.5;">${MENSAJE_CERRADO}</div>
+      <div style="margin-top:20px; font-size:0.78rem; color:#718096;">
+        ¿Dudas o cancelaciones? Contacta a <strong>María Inés de la Cruz</strong><br>
+        📧 mdelacruz@drimer.com.pe
+      </div>`;
+    contenedor.appendChild(aviso);
+    window.scrollTo(0, 0);
+  }
 
   function mostrarFechaHoy() {
     const hoy = new Date();
@@ -613,6 +654,7 @@
       entrada: 'Entrada del día',
       fondo1:  'Fondo 1',
       fondo2:  'Fondo 2',
+      fondo3:  'Fondo 3',
       light:   'Opción Light',
     };
 
@@ -623,47 +665,29 @@
     const menuSemana = menuSemanal[lunesDeSemana];
 
     if (!menuSemana || !menuSemana[key]) return fallback;
-    return menuSemana[key];
+
+    // Si algún plato está vacío en la hoja Menú, se muestra el texto genérico
+    const menuDia = {};
+    Object.keys(fallback).forEach(k => {
+      const valor = (menuSemana[key][k] || '').toString().trim();
+      menuDia[k] = valor || fallback[k];
+    });
+    return menuDia;
   }
 
   // ============================================================
   // GENERAR DÍAS DISPONIBLES
   // ============================================================
-  function obtenerDiasDisponibles() {
-    const hoy = new Date();
-    const diaSemana = hoy.getDay();
+  function obtenerDiasDisponibles(ahora = new Date()) {
+    const hoy = new Date(ahora);
+    const diaSemana = hoy.getDay();   // 0 = domingo, 1 = lunes ... 6 = sábado
     const horaActual = hoy.getHours();
 
     const nombresDias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
     const nombresMeses = ['enero','febrero','marzo','abril','mayo','junio',
                           'julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-    // Nueva lógica de cierre:
-    // - Viernes: formulario abierto todo el día, lunes siempre disponible
-    // - Sábado: formulario abierto todo el día, lunes siempre disponible
-    // - Domingo: lunes disponible hasta las 8pm, bloqueado después de las 8pm
-    // - Resto de días: cierre a las 3pm como siempre
-
-    const HORA_CIERRE_DOMINGO = 20; // 8pm
-
-    // EXCEPCIÓN TEMPORAL — Semana del 27 al 29 de julio 2026
-    // Como martes 28 y miércoles 29 son feriados, la regla normal de cierre
-    // de las 3pm terminaría bloqueando también el jueves 30 en cascada.
-    // Por eso, SOLO durante estos 3 días, se desactiva el cierre de las 3pm
-    // para que el formulario quede abierto todo el día y la gente pueda
-    // pedir con tiempo para jueves 30 y viernes 31.
-    // Esta excepción se puede borrar después del 29 de julio 2026 (ya no
-    // tiene efecto una vez pasada esa fecha, pero no hace daño dejarla).
-    const DIAS_SIN_CIERRE_3PM = ['2026-07-27', '2026-07-28', '2026-07-29'];
-    const hoyEsDiaSinCierre = DIAS_SIN_CIERRE_3PM.includes(toISO(hoy));
-
-    // mananaEstaBlockeada solo aplica de lunes a jueves (no viernes, sábado ni domingo)
-    const mananaEstaBlockeada = (diaSemana >= 1 && diaSemana <= 4) && horaActual >= HORA_CIERRE && !hoyEsDiaSinCierre;
-
-    // El lunes está bloqueado solo si hoy es domingo después de las 8pm
-    const lunesEstaBlockeado = diaSemana === 0 && horaActual >= HORA_CIERRE_DOMINGO;
-
-    // Función auxiliar para obtener fechaISO en hora local
+    // Fecha en formato YYYY-MM-DD (hora local)
     function toISO(d) {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -671,60 +695,64 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    // El primer día disponible empieza desde mañana
-    // Salta fines de semana y feriados
-    // El lunes se salta solo si hoy es domingo después de las 8pm
+    // REGLAS DE HORARIO:
+    // 1. Lunes a miércoles → se puede pedir hasta el viernes de esta semana.
+    // 2. Jueves a sábado   → se puede pedir hasta el viernes de la semana siguiente.
+    // 3. Lunes a jueves, desde las 3:00 pm → el día siguiente aparece "Plazo cerrado".
+    //    (Viernes y sábado no tienen cierre de 3 pm: el lunes sigue disponible.)
+    // 4. Sábado 5:00 pm → lunes 6:00 am: formulario cerrado (ver formularioEstaCerrado).
+    // 5. El lunes, el mismo lunes aparece como "Plazo cerrado".
+    // Los feriados (FECHAS_BLOQUEADAS) siempre aparecen bloqueados con su nombre.
+
+    // Regla 3
+    const mananaEstaBloqueada = (diaSemana >= 1 && diaSemana <= 4) && horaActual >= HORA_CIERRE;
+
+    // Primer día hábil desde mañana (salta fines de semana y feriados).
+    // Es el día que se cierra a las 3 pm.
     let primerDiaDisponible = new Date(hoy);
     primerDiaDisponible.setDate(hoy.getDate() + 1);
     while (
       primerDiaDisponible.getDay() === 0 ||
       primerDiaDisponible.getDay() === 6 ||
-      FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaDisponible)) ||
-      (lunesEstaBlockeado && primerDiaDisponible.getDay() === 1)
+      FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaDisponible))
     ) {
       primerDiaDisponible.setDate(primerDiaDisponible.getDate() + 1);
     }
+    const primerDiaDisponibleISO = toISO(primerDiaDisponible);
 
-    // El primerDiaHabilSinBloqueo es el que determina el viernes límite
-    // Si mañana está bloqueado por horario, usamos el día SIGUIENTE al primerDiaDisponible
-    let primerDiaParaLimite = new Date(primerDiaDisponible);
-    if (mananaEstaBlockeada) {
-      primerDiaParaLimite.setDate(primerDiaParaLimite.getDate() + 1);
-      while (
-        primerDiaParaLimite.getDay() === 0 ||
-        primerDiaParaLimite.getDay() === 6 ||
-        FECHAS_BLOQUEADAS.hasOwnProperty(toISO(primerDiaParaLimite))
-      ) {
-        primerDiaParaLimite.setDate(primerDiaParaLimite.getDate() + 1);
-      }
-    }
-    const diaSemanaDisponible = primerDiaParaLimite.getDay();
-
-    // Calcular viernes límite basándose en HOY
-    // Solo jueves(4) y viernes(5) → viernes de la semana siguiente
-    // Lunes(1), Martes(2), Miércoles(3), Sábado(6), Domingo(0) → viernes de esta semana
-    // Nota: sábado y domingo el "viernes de esta semana" ya pasó, así que
-    // se calcula el viernes de la semana siguiente a la del lunes próximo
+    // Reglas 1 y 2: viernes límite
     let viernesLimite = new Date(hoy);
-    if (diaSemana === 4) {
-      // Jueves → viernes siguiente (8 días)
-      viernesLimite.setDate(hoy.getDate() + 8);
+    if (diaSemana >= 1 && diaSemana <= 3) {
+      viernesLimite.setDate(hoy.getDate() + (5 - diaSemana));   // viernes de esta semana
+    } else if (diaSemana === 4) {
+      viernesLimite.setDate(hoy.getDate() + 8);                 // jueves → viernes siguiente
     } else if (diaSemana === 5) {
-      // Viernes → viernes siguiente (7 días)
-      viernesLimite.setDate(hoy.getDate() + 7);
+      viernesLimite.setDate(hoy.getDate() + 7);                 // viernes → viernes siguiente
     } else if (diaSemana === 6) {
-      // Sábado → viernes de la semana siguiente (6 días)
-      // pero el primer día disponible es martes, así que límite = viernes de esa semana
-      viernesLimite.setDate(hoy.getDate() + 6);
-    } else if (diaSemana === 0) {
-      // Domingo → viernes de la semana siguiente (5 días)
-      viernesLimite.setDate(hoy.getDate() + 5);
+      viernesLimite.setDate(hoy.getDate() + 6);                 // sábado → viernes siguiente
     } else {
-      // Lunes(1), Martes(2), Miércoles(3) → viernes de esta semana
-      viernesLimite.setDate(hoy.getDate() + (5 - diaSemana));
+      viernesLimite.setDate(hoy.getDate() + 5);                 // domingo (formulario cerrado)
     }
 
     const dias = [];
+
+    function agregarDia(fecha, bloqueado, textoBloqueado) {
+      dias.push({
+        id: `dia_${dias.length}`,
+        nombre: nombresDias[fecha.getDay()],
+        fecha: `${fecha.getDate()} de ${nombresMeses[fecha.getMonth()]}`,
+        fechaISO: toISO(fecha),
+        bloqueado: bloqueado,
+        textoBloqueado: textoBloqueado
+      });
+    }
+
+    // Regla 5: el lunes, el mismo lunes aparece como "Plazo cerrado"
+    if (diaSemana === 1) {
+      const hoyISO = toISO(hoy);
+      agregarDia(hoy, true, FECHAS_BLOQUEADAS[hoyISO] || 'Plazo cerrado');
+    }
+
     let fecha = new Date(hoy);
     fecha.setDate(fecha.getDate() + 1); // Desde mañana
 
@@ -732,28 +760,11 @@
       const ds = fecha.getDay();
       if (ds >= 1 && ds <= 5) {
         const fechaISO = toISO(fecha);
-
-        // Bloqueado por horario si es el primerDiaDisponible y ya son las 3pm (lun-jue)
-        const primerDiaDisponibleISO = toISO(primerDiaDisponible);
-        const bloqueadoPorHorario = (fechaISO === primerDiaDisponibleISO) && mananaEstaBlockeada;
-
-        // Lunes bloqueado solo si hoy es domingo después de las 8pm
-        const bloqueadoFinDeSemana = lunesEstaBlockeado && ds === 1;
-
-        // Verificar si es feriado usando hora local
         const esFeriado = FECHAS_BLOQUEADAS.hasOwnProperty(fechaISO);
-        const bloqueado = bloqueadoPorHorario || esFeriado || bloqueadoFinDeSemana;
+        const bloqueadoPorHorario = (fechaISO === primerDiaDisponibleISO) && mananaEstaBloqueada;
         let textoBloqueado = 'Plazo cerrado';
         if (esFeriado) textoBloqueado = FECHAS_BLOQUEADAS[fechaISO];
-
-        dias.push({
-          id: `dia_${dias.length}`,
-          nombre: nombresDias[ds],
-          fecha: `${fecha.getDate()} de ${nombresMeses[fecha.getMonth()]}`,
-          fechaISO: fechaISO,
-          bloqueado: bloqueado,
-          textoBloqueado: textoBloqueado
-        });
+        agregarDia(fecha, esFeriado || bloqueadoPorHorario, textoBloqueado);
       }
       fecha.setDate(fecha.getDate() + 1);
     }
@@ -832,6 +843,11 @@
                   🍽️ ${m.fondo2}
                 </label>
                 <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
+                  <input type="radio" name="fondo_${dia.id}" value="${m.fondo3}">
+                  <div class="radio-dot"></div>
+                  🍽️ ${m.fondo3}
+                </label>
+                <label class="radio-opt" onclick="selectRadio(this, 'fondo_${dia.id}')">
                   <input type="radio" name="fondo_${dia.id}" value="${m.light}">
                   <div class="radio-dot"></div>
                   🥦 ${m.light}
@@ -886,6 +902,12 @@
     e.preventDefault();
     ocultarMensaje();
 
+    // Si la página quedó abierta y ya pasó el horario de cierre del sábado
+    if (formularioEstaCerrado()) {
+      mostrarFormularioCerrado();
+      return;
+    }
+
     // Validar datos
     const nombre = document.getElementById('nombre').value.trim();
     const dni = document.getElementById('dni').value.trim();
@@ -927,6 +949,16 @@
     });
 
     if (hayError) return mostrarError('Completa las opciones de menú (primera parte y fondo) para todos los días seleccionados.');
+
+    // Si la página quedó abierta mucho rato, verificar que los días elegidos sigan abiertos
+    const diasAhora = obtenerDiasDisponibles();
+    const diaVencido = pedidos.find(p => {
+      const d = diasAhora.find(x => x.fechaISO === p.fecha);
+      return !d || d.bloqueado;
+    });
+    if (diaVencido) {
+      return mostrarError(`El plazo para pedir el ${diaVencido.fechaTexto} ya cerró. Recarga la página para ver los días disponibles.`);
+    }
     if (!confirmado) return mostrarError('Debes aceptar los términos antes de registrar tu pedido.');
 
     // Mostrar spinner
